@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <title>馬來西亞華人移民同鄉會館原鄉地圖 | Nanyang Data</title>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Noto Sans TC", sans-serif;
+        }
+        body {
+            background: #f1f5f9;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Top Navigation Header */
+        header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        .header-title-box h1 {
+            font-size: 17px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        @media (min-width: 768px) {
+            .header-title-box h1 { font-size: 20px; }
+        }
+        .header-title-box p {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .badge-source {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11.5px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .btn-toggle-panel {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-toggle-panel:hover { background: rgba(255, 255, 255, 0.25); }
+
+        /* Main App Body (Map + Sidebar) */
+        .app-body {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Map Container */
+        #map {
+            flex: 1;
+            height: 100%;
+            z-index: 10;
+        }
+        
+        /* Sidebar Drawer (Responsive for Mobile & Desktop) */
+        .sidebar {
+            width: 380px;
+            max-width: 100vw;
+            background: white;
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+            box-shadow: -4px 0 16px rgba(0,0,0,0.06);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                right: 0;
+                width: 100%;
+                transform: translateX(100%);
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            background: #f8fafc;
+        }
+        .sidebar-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text-main);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sidebar-close-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-sub);
+        }
+        @media (max-width: 768px) {
+            .sidebar-close-btn { display: block; }
+        }
+
+        /* Origin Group Filter Pills */
+        .filter-section {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            background: white;
+        }
+        .filter-title {
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .filter-btn-reset {
+            font-size: 11.5px;
+            color: #2563eb;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .origin-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .chip.active {
+            border-color: currentColor;
+            background: #f1f5f9;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+        .chip-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+        }
+        .chip-count {
+            font-size: 10.5px;
+            opacity: 0.75;
+        }
+
+        /* Search input */
+        .search-section {
+            padding: 10px 16px;
+            background: white;
+            border-bottom: 1px solid var(--border);
+        }
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 6px 12px;
+        }
+        .search-input {
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            width: 100%;
+            outline: none;
+            color: var(--text-main);
+        }
+
+        /* Sites List */
+        .sites-scroll {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .site-card {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .site-card:hover {
+            background: #f8fafc;
+        }
+        .site-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 3px;
+        }
+        .site-card-name {
+            font-size: 14px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .site-card-tag {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            color: white;
+            white-space: nowrap;
+        }
+        .site-card-sub {
+            font-size: 12px;
+            color: var(--text-sub);
+            margin-bottom: 4px;
+            line-height: 1.35;
+        }
+        .site-card-foot {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11.5px;
+            color: #64748b;
+        }
+        .badge-mapped {
+            color: #166534;
+            font-weight: 700;
+        }
+        .badge-unmapped {
+            color: #991b1b;
+            font-weight: 700;
+        }
+
+        /* Floating Legend Overlay on Map */
+        .map-floating-legend {
+            position: absolute;
+            bottom: 24px;
+            left: 18px;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(8px);
+            padding: 12px 14px;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            z-index: 15;
+            max-width: 290px;
+            font-size: 12px;
+            display: none;
+        }
+        @media (min-width: 900px) {
+            .map-floating-legend { display: block; }
+        }
+        .legend-title {
+            font-weight: 800;
+            font-size: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 4px;
+            font-size: 11.5px;
+            color: #334155;
+        }
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* Custom Popup Styles */
+        .leaflet-popup-content {
+            font-size: 13px;
+            line-height: 1.5;
+            min-width: 240px;
+            max-width: 280px;
+            margin: 12px 14px;
+        }
+        .popup-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+        .popup-sub {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+        .popup-badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 4px;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .popup-detail {
+            border-top: 1px solid #e2e8f0;
+            padding-top: 6px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: #334155;
+        }
+        .popup-detail strong { color: #0f172a; }
+    </style>
+</head>
+<body>
+    <!-- Top Header -->
+    <header>
+        <div class="header-title-box">
+            <h1><span>🗺️</span> 馬來西亞華人移民同鄉會館原鄉分佈地圖</h1>
+            <p>篩選自《馬來西亞華文銘刻萃編》81 處地緣同鄉團體，依祖籍原鄉色彩分類呈現</p>
+        </div>
+        <div class="header-actions">
+            <span class="badge-source">
+                ⚖️ 資料來源：Nanyang Data（CC BY-SA 4.0）
+            </span>
+            <button class="btn-toggle-panel" onclick="toggleSidebar()">
+                <span>📋</span> 列表與篩選 (<span id="totalVisibleCount">71</span>)
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="app-body">
+        <!-- Leaflet Map Canvas -->
+        <div id="map"></div>
+
+        <!-- Floating Map Legend on Large Screens -->
+        <div class="map-floating-legend">
+            <div class="legend-title">
+                <span>原鄉圖例（點擊上方切換）</span>
+            </div>
+            <div id="legendItemsList"></div>
+            <div style="margin-top:6px; font-size:10.5px; color:#94a3b8; border-top:1px solid #f1f5f9; padding-top:4px;">
+                共 71 處已標註座標，10 處無現代座標
+            </div>
+        </div>
+
+        <!-- Sidebar Panel for Filtering & Site Inspecting -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">
+                    <span>🧭 祖籍原鄉分類篩選</span>
+                    <button class="sidebar-close-btn" onclick="toggleSidebar()">✕</button>
+                </div>
+            </div>
+
+            <!-- Origin Group Filter Section -->
+            <div class="filter-section">
+                <div class="filter-title">
+                    <span>原鄉群別 (方言群)</span>
+                    <button class="filter-btn-reset" onclick="resetFilters()">重設全部</button>
+                </div>
+                <div class="origin-chips" id="chipsContainer">
+                    <!-- Dynamic Filter Chips -->
+                </div>
+            </div>
+
+            <!-- Search box -->
+            <div class="search-section">
+                <div class="search-box">
+                    <span style="margin-right:6px; color:#94a3b8;">🔍</span>
+                    <input type="text" id="searchInput" class="search-input" placeholder="搜尋會館名稱、拼音或地址..." oninput="filterSites()">
+                </div>
+            </div>
+
+            <!-- Filtered Sites Scrollable List -->
+            <div class="sites-scroll" id="sitesList">
+                <!-- Dynamic Site Cards -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- Script: Map Rendering & Interactions -->
+    <script>
+        // Data injected from Python
+        const pointsData = [{"id": "fm-wf-022", "frankeNo": "A1.22", "nameZh": "廣肇會館", "nameAlt": "Kuang-chao hui-kuan, Landsmannschaft of people from Kuang-chou and Chao-ch'ing prefecrures", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 3.144035, "lng": 101.696684, "dateISO": "1886", "dateRef": "A1.22.1", "address": "168, Jalan Tun H S Lee, City Centre, 50000 Kuala Lumpur, Wilayah Persekutuan Kuala Lumpur, Malaysia", "notes": "廣肇會館現掛牌於關帝廟，Franke所記原址當在Jalan Tun H.S. Lee （即書中所謂High street，華文名諧街）147、149號（3.1441905, 101.696607）。"}, {"id": "fm-wf-023", "frankeNo": "A1.23", "nameZh": "惠州會館", "nameAlt": "Hui-chou hui-kuan, Landsmannschaft of people from Hui-chou prefecrures", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 3.145656, "lng": 101.697445, "dateISO": "1875", "dateRef": "A1.23.2", "address": "Kuala Lumpur City Centre, 50050 Kuala Lumpur, Federal Territory of Kuala Lumpur, Malaysia", "notes": ""}, {"id": "fm-wf-024", "frankeNo": "A1.24", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, Landsmannschaft of people from Ch'iung-chou prefecrures, i.e. the island of Hainan", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 3.121321, "lng": 101.687636, "dateISO": "1889", "dateRef": "A1.24 (p115)", "address": "65, Persiaran Endah, Off, Jalan Syed Putra, 50460 Wilayah Persekutuan, Federal Territory of Kuala Lumpur, Malaysia", "notes": "現存最早文物A1.24.1 (1909)。瓊州會館現掛牌於天后宮，Franke所記原址當在Lorong Sultan（即書中所謂Sultan Street）83號（3.144099, 101.698846）。"}, {"id": "fm-wf-025", "frankeNo": "A1.25", "nameZh": "番禺會館", "nameAlt": "P'an-yü hui-kuan, Landsmannschaft of people from P'an-yü county to which the city of Canton belongs", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 3.145252, "lng": 101.70647, "dateISO": "1927", "dateRef": "A1.25.2", "address": "23-31, Jln Tong Shin, Bukit Bintang, 50200 Kuala Lumpur, Wilayah Persekutuan Kuala Lumpur, Malaysia", "notes": ""}, {"id": "fm-wf-026", "frankeNo": "A1.26", "nameZh": "福建會館", "nameAlt": "Fu-chien hui-kuan, Landsmannschaft of Fukien people", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 3.148422, "lng": 101.698384, "dateISO": "1932", "dateRef": "A1.26.1", "address": "Bangunan Selangor Hokkien Association, 41-c, Jalan Hang Lekiu, City Centre, 50100 Kuala Lumpur, Wilayah Persekutuan Kuala Lumpur, Malaysia", "notes": ""}, {"id": "fm-wf-027", "frankeNo": "A1.27", "nameZh": "潮州八邑會館", "nameAlt": "Kuang-chao hui-kuan, Landsmannschaft of people from Kuang-chou and Chao-ch'ing prefectures", "origin": "潮州群 (潮汕)", "color": "#9333ea", "hasCoord": true, "lat": 3.170503, "lng": 101.697136, "dateISO": "1891", "dateRef": "A1.27.2", "address": "1, Level 13A, Menara Teo Chew No, 1, Jalan Lumut, Pekeliling, 50400 Kuala Lumpur, Wilayah Persekutuan Kuala Lumpur, Malaysia", "notes": ""}, {"id": "fm-wf-028", "frankeNo": "A1.28", "nameZh": "安溪會館", "nameAlt": "An-ch'i hui-kuan, Landsmannschaft of people from An-ch'i county, Ch'üan-chou predecture, Fukien", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 3.151877, "lng": 101.698427, "dateISO": "1929", "dateRef": "A1.28 (p125)", "address": "5th Floor, Wisma Ann Koai, 67, Jln Ampang, Kuala Lumpur, 50450 Kuala Lumpur, Federal Territory of Kuala Lumpur, Malaysia", "notes": "現存最早文物A1.26.1 (1938)。"}, {"id": "fm-wf-029", "frankeNo": "A1.29", "nameZh": "會寗公所", "nameAlt": "Hui-ning kung-so, Landsmannschaft of people from Ssu-hui and Kuang-ning, two adjoining counties of Chao-ch'ing prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 3.141916, "lng": 101.697323, "dateISO": "1951", "dateRef": "A1.29.1", "address": "2nd Floor, 8, Jalan Panggong, Kuala Lumpur City Centre, 50000 Kuala Lumpur, Federal Territory of Kuala Lumpur, Malaysia", "notes": ""}, {"id": "fm-wf-030", "frankeNo": "A1.30", "nameZh": "台山會館", "nameAlt": "T'ai-shan hui-kuan, Landsmannschaft of people from T'ai-shan (or Hsin-ning)", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 3.144887, "lng": 101.707057, "dateISO": "1951", "dateRef": "A1.30 (p127)", "address": "13, Jln Tong Shin, Bukit Bintang, 50200 Kuala Lumpur, Wilayah Persekutuan Kuala Lumpur, Malaysia", "notes": "現存最早文物A1.30.1 (1957)。"}, {"id": "fm-wf-035", "frankeNo": "A1.35", "nameZh": "商業職員公會", "nameAlt": "Shang-yeh chih-yüan kung-hui, association of commercial employees", "origin": "非地緣職業公會", "color": "#94a3b8", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1937", "dateRef": "A1.35.1", "address": "", "notes": ""}, {"id": "fm-wf-045", "frankeNo": "B2.5", "nameZh": "茶陽會館回春醫社", "nameAlt": "Ch'a-yang hui-kuan Hui-ch'un i-she, hospital attached to Hakka Landsmannschaft of Ta-p'u county", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 1.855418, "lng": 102.929594, "dateISO": "1917, 1926", "dateRef": "B2.5 (p164)", "address": "24A&B.Jalan Mohd Akil.Batu Pahat., Johor, Malaysia", "notes": "現存最早文物B2.5.1 (1932)。"}, {"id": "fm-wf-050", "frankeNo": "B5.3", "nameZh": "廣西同鄉會", "nameAlt": "Kuang-hsi t'ung-hsiang-hui, Kwangsi Landsmannschaft", "origin": "廣西群", "color": "#0891b2", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1947", "dateRef": "B5.3.1", "address": "", "notes": ""}, {"id": "fm-wf-053", "frankeNo": "B7.2", "nameZh": "永春會館", "nameAlt": "Yung-ch'un hui-kuan, Landsmannschaft of people from Yung-ch'un", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 2.049687, "lng": 102.569465, "dateISO": "1908", "dateRef": "B7.2.1", "address": "Jalan Maharani, Taman Sri Emas, 84000 Muar, Johor, Malaysia", "notes": ""}, {"id": "fm-wf-062", "frankeNo": "C1.5", "nameZh": "廣東暨汀州會館", "nameAlt": "Kuang-tung chi T'ing-chou hui-kuan, Landsmannschaft of people from Kuangtung province and from T'ing-chou prefecture, Fukien", "origin": "跨省 / 綜合機構", "color": "#475569", "hasCoord": true, "lat": 6.11654, "lng": 100.363082, "dateISO": "1852", "dateRef": "C1.5 (p191)", "address": "9-35, Jalan Tunku Yaakub, Taman Pesisiran Tanjung Chali, 05000 Alor Setar, Kedah, Malaysia", "notes": "現存最早文物C1.5.1 (1911)。"}, {"id": "fm-wf-063", "frankeNo": "C1.6", "nameZh": "漳泉公所", "nameAlt": "Chang Ch'üan kung-so, Landsmannschaft of people originating from former two prefectures of Chang-chou and Ch'üan-chou Fukien", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1954", "dateRef": "C1.6.1", "address": "", "notes": ""}, {"id": "fm-wf-070", "frankeNo": "C4.4", "nameZh": "琼州會館", "nameAlt": "Ch'iung-chou hui-kuan, Hainan Landsmannschaft of Kuah", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1910", "dateRef": "C4.4 (p201)", "address": "", "notes": "現存最早文物C4.4.1 (1926)。"}, {"id": "fm-wf-072", "frankeNo": "C5.2", "nameZh": "古城會館", "nameAlt": "Ku-ch'eng hui-kuan", "origin": "跨省 / 綜合機構", "color": "#475569", "hasCoord": true, "lat": 5.638458, "lng": 100.495268, "dateISO": "1909", "dateRef": "C5.2.1", "address": "42 A, Jalan Tiga, Kampung Sungai Tongka, 08000 Sungai Petani, Kedah, Malaysia", "notes": ""}, {"id": "fm-wf-102", "frankeNo": "E1.23", "nameZh": "福建會館", "nameAlt": "Fu-chien hui-kuan, Fukien Landsmannschaft", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 2.195871, "lng": 102.247389, "dateISO": "1843", "dateRef": "E1.23.1", "address": "23, Jalan Hang Jebat, 75200 Melaka, Malaysia", "notes": ""}, {"id": "fm-wf-103", "frankeNo": "E1.24", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, Landsmannschaft of people from Ch'iung chou prefecture, i.e. Hainan island", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 2.197507, "lng": 102.245664, "dateISO": "1869", "dateRef": "E1.24 (p398)", "address": "115, Jalan Hang Jebat, 75200 Melaka, Malaysia", "notes": "現存最早文物E1.24.1 (1871)。"}, {"id": "fm-wf-104", "frankeNo": "E1.25", "nameZh": "永春會館", "nameAlt": "Yung-ch'un hui-kuan, Landsmannschaft of people from Yung-ch'un Department", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 2.196592, "lng": 102.245079, "dateISO": "1875", "dateRef": "E1.25.1", "address": "122, Jalan Tun Tan Cheng Lock, 75200 Melaka, Malaysia", "notes": ""}, {"id": "fm-wf-105", "frankeNo": "E1.26", "nameZh": "漳州會館", "nameAlt": "Chang-chou hui-kuan, Landsmannschaft of people from Chang-chou prefecture", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 2.209941, "lng": 102.254505, "dateISO": "1894", "dateRef": "E1.26.1", "address": "49, Jalan Taming Sari, Kampung Mata Kuching, 75400 Melaka, Malaysia", "notes": ""}, {"id": "fm-wf-106", "frankeNo": "E1.27", "nameZh": "雷州會館, 雷陽社", "nameAlt": "Lei-chou hui-kuan, Landsmannschaft of people from Lei-chou prefecture, Lei-yang she", "origin": "雷州群", "color": "#e11d48", "hasCoord": true, "lat": 2.197219, "lng": 102.24595, "dateISO": "1916", "dateRef": "E1.27.1", "address": "97, Jalan Hang Jebat, 75200 Melaka, Malaysia", "notes": ""}, {"id": "fm-wf-107", "frankeNo": "E1.28", "nameZh": "應和會館", "nameAlt": "Ying-ho hui-kuan, Landsmannschaft of Hakka from Chia-ying chou", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 2.194681, "lng": 102.256894, "dateISO": "1916/17", "dateRef": "E1.28.1", "address": "Lorong Laksamana Cheng Ho 2, 75000 Melaka, Malaysia", "notes": "曾用名Mei-chou chung-chi kung-ssu梅州衆記公司, Ying-ho kung-ssu應和公司。"}, {"id": "fm-wf-108", "frankeNo": "E1.29", "nameZh": "茶陽會館", "nameAlt": "Ch'a-yang hui-kuan, Landsmannschaft of Hakka people from Ta-p'u county, Ch'ao-chou prefecture", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 2.197098, "lng": 102.246085, "dateISO": "1810", "dateRef": "E1.29 (p418)", "address": "89, Jalan Hang Jebat, 75200 Melaka, Malaysia", "notes": "現存最早文物E1.29.1 (1917)。"}, {"id": "fm-wf-109", "frankeNo": "E1.30", "nameZh": "岡州會館", "nameAlt": "Kang-chou hui-kuan, Landsmannschaft of people from six countries Hsin-hui, T'ai-shan, En-p'ing, K'ai-ping, Ho-shan, and Chih-ch'i, belong to Kuang-chou and Chao-ch'ing prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 2.19773, "lng": 102.247084, "dateISO": "1891", "dateRef": "E1.30 (p423)", "address": "22, Jalan Tokong, Kampung Dua, 75200 Melaka, Malaysia", "notes": "現存最早文物E1.30.1 (1952)。"}, {"id": "fm-wf-125", "frankeNo": "F1.7", "nameZh": "鵝城會館", "nameAlt": "T'ien shih-yeh kung, Temple of the Heavenly Master", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 2.728857, "lng": 101.940489, "dateISO": "1871", "dateRef": "F1.7 (p457)", "address": "41, Jalan Kapitan Tam Yeong, Taman Sim, 70000 Seremban, Negeri Sembilan, Malaysia", "notes": "現存最早文物F1.7.1 (1891)。鵝城會館現名惠州會館，現址完工於1983年，不確定是否為Franke書中所記。"}, {"id": "fm-wf-126", "frankeNo": "F1.8", "nameZh": "四邑會館", "nameAlt": "Ssu-i hui-kuan, Landsmannschaft of people from the four counties of T'ai shan, Hsin-hui, K'ai-p'ing, and En-p'ing", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 2.728927, "lng": 101.940812, "dateISO": "1889", "dateRef": "F1.8.5", "address": "777, Jalan Leftenan Adnan, Taman Sim, 70200 Seremban, Negeri Sembilan, Malaysia", "notes": ""}, {"id": "fm-wf-127", "frankeNo": "F1.9", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, the landsmanschaft of people from Hainan", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 2.728126, "lng": 101.941094, "dateISO": "1904", "dateRef": "F1.9.1", "address": "29-30, 31, Jalan Dato' Abdul Malek, Taman Sim, 70000 Seremban, Negeri Sembilan, Malaysia", "notes": ""}, {"id": "fm-wf-128", "frankeNo": "F1.10", "nameZh": "海陸會館", "nameAlt": "Hai-lu hui-kuan, the landsmannschaft of people from the two counties Hai-feng and Lu-feng in Hui-chou prefecture", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 2.701618, "lng": 101.940092, "dateISO": "1936", "dateRef": "F1.10.1", "address": "938, Jalan Rasah, Kampung Dato Mansor, 70300 Seremban, Negeri Sembilan, Malaysia", "notes": ""}, {"id": "fm-wf-143", "frankeNo": "G3.3", "nameZh": "客屬公會", "nameAlt": "K'o-shu kung-hui, Landsmannschaft of Hakka people", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1891", "dateRef": "G3.3.1", "address": "", "notes": "曾用名K'o-chi hui-kuan客籍會館，1939年改為現名。"}, {"id": "fm-wf-145", "frankeNo": "G4.2", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, Landsmannschaft of Hainan people", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 3.480838, "lng": 102.347137, "dateISO": "1926", "dateRef": "G4.2.3", "address": "Jalan Mentakab 1, Taman Mentakab, Mentakab, Malaysia", "notes": ""}, {"id": "fm-wf-148", "frankeNo": "G5.3", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, Landsmannschaft of people from Hainan ", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1902", "dateRef": "G5.3.1", "address": "", "notes": ""}, {"id": "fm-wf-149", "frankeNo": "G5.4", "nameZh": "廣肇會館", "nameAlt": "Kuang Chao hui-kuan, Landsmannschaft of people from Kuang-chou and Chao-ch'ing prefectures", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1927", "dateRef": "G5.4.1", "address": "", "notes": ""}, {"id": "fm-wf-153", "frankeNo": "G7.2", "nameZh": "廣西會館", "nameAlt": "Kuang-hsi hui-kuan, Landsmannschaft of people from Kuangsi province", "origin": "廣西群", "color": "#0891b2", "hasCoord": true, "lat": 3.485996, "lng": 102.35032, "dateISO": "1956", "dateRef": "G7.2.1", "address": "Kampung China, 28400 Mentakab, Pahang, Malaysia", "notes": ""}, {"id": "fm-wf-182", "frankeNo": "H1.29", "nameZh": "嘉應會館", "nameAlt": "Chia-ying hui-kuan, Hakka Landsmannschaft of Chia-ying chou", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 5.418898, "lng": 100.340283, "dateISO": "1803", "dateRef": "H1.29 (p769-770)", "address": "24, King Street, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": "曾用名Jen-ho kung-kuan仁和公館。現存最早文物App. (1803)。"}, {"id": "fm-wf-183", "frankeNo": "H1.30", "nameZh": "潮州會館", "nameAlt": "Ch'ao-chou hui-kuan, Ch'ao-chou Landsmannschaft", "origin": "潮州群 (潮汕)", "color": "#9333ea", "hasCoord": true, "lat": 5.416656, "lng": 100.338219, "dateISO": "1864", "dateRef": "H1.30 (p772)", "address": "127, Lbh Chulia, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": "曾用名Han-chiang chia-miao韓江家廟。現存最早文物H1.30.1 (1870)。"}, {"id": "fm-wf-184", "frankeNo": "H1.31", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, Hainan-Landsmannschaft of Ch'iung-chou", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 5.420381, "lng": 100.334607, "dateISO": "1860s", "dateRef": "H1.31 (p773)", "address": "93, Lebuh Muntri, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": "曾用名T'ien-hou kung天后宮。現存最早文物H1.31.1 (1870)。"}, {"id": "fm-wf-185", "frankeNo": "H1.32", "nameZh": "平章會館, 平章公館, 華人大會堂", "nameAlt": "P'ing-chang hui-kuan, P'ing-chang kung-kuan, Hua-jen ta-hui-t'ang, Chinese Town Hall", "origin": "跨省 / 綜合機構", "color": "#475569", "hasCoord": true, "lat": 5.418867, "lng": 100.338846, "dateISO": "1886", "dateRef": "H1.32.1", "address": "22, Jln Masjid Kapitan Keling, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": ""}, {"id": "fm-wf-186", "frankeNo": "H1.33", "nameZh": "寧陽會館,甯陽舘", "nameAlt": "Ning-yang hui-kuan, Landsmannschaft of people from Ning-yang county, i.e. Hsin-ning 新寧 (later T'aishan 台山) , Kuang-chou Prefecture, Ning-yang kuan", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 5.418331, "lng": 100.339977, "dateISO": "1831", "dateRef": "H1.33 (p804)", "address": "36 & 38, King Street, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": "現存最早文物H1.33.1 (1888)。"}, {"id": "fm-wf-188", "frankeNo": "H1.35", "nameZh": "南海會館", "nameAlt": "Nan-hai hui-kuan, Landsmannschaft of people from Nan-hai County, Kuang-chou Prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 5.419427, "lng": 100.333657, "dateISO": "1860", "dateRef": "H1.35 (p822)", "address": "463, Lbh Chulia, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": "現存最早文物H1.35.1 (1904)。"}, {"id": "fm-wf-189", "frankeNo": "H1.36", "nameZh": "香山/中山會館", "nameAlt": "Hsiang-shan or Chung-shan hui-kuan, Landsmannschaft of people from Hsiang-shan county, Kuang-chou prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 5.418608, "lng": 100.340167, "dateISO": "1860", "dateRef": "H1.36 (p832)", "address": "30, King Street, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": "現存最早文物H1.36.1 (1907)。"}, {"id": "fm-wf-190", "frankeNo": "H1.37", "nameZh": "增龍會館", "nameAlt": "Tseng-lung hui-kuan, Landsmannschaft of people from Tseng-ch'eng and Lung-men counties, Kuang-chou Prefecture, mainly Hakka", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 5.419202, "lng": 100.340448, "dateISO": "1922", "dateRef": "H1.37.1", "address": "18, King Street, George Town, 10200 George Town, Pulau Pinang, Malaysia", "notes": ""}, {"id": "fm-wf-191", "frankeNo": "H1.38", "nameZh": "廣東暨汀州會館", "nameAlt": "Kuang-tung chi T'ing-chou hui-kuan, Landsmannschaft of people from Kuangtung province and from T'ing-chou prefecture, Fukien", "origin": "跨省 / 綜合機構", "color": "#475569", "hasCoord": true, "lat": 5.418284, "lng": 100.340672, "dateISO": "1925-1934", "dateRef": "H1.38 (p834)", "address": "50, Penang St, Georgetown, 10200 George Town, Penang, Malaysia", "notes": "現存最早文物H1.38.1 (1940)。"}, {"id": "fm-wf-192", "frankeNo": "H1.39", "nameZh": "惠安公會", "nameAlt": "Hui-an kung-hui, Landsmannschaft of people from Hui-an county, Ch'uan-chou prefecture", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 5.412367, "lng": 100.331829, "dateISO": "1938", "dateRef": "H1.39.1", "address": "No. 73, Jalan Magazine, 10300 George Town, Pulau Pinang, Malaysia", "notes": ""}, {"id": "fm-wf-193", "frankeNo": "H1.40", "nameZh": "大埔同鄉會", "nameAlt": "Ta-p'u t'ung-hsiang-hui, Hakka Landsmannschaft of people from Ta-p'u county, Ch'ao-chou prefecture", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 5.419206, "lng": 100.323263, "dateISO": "1936", "dateRef": "H1.40 (p840)", "address": "33, Jalan Anson, 10400 George Town, Pulau Pinang, Malaysia", "notes": "現存最早文物H1.40.1 (1949)。"}, {"id": "fm-wf-194", "frankeNo": "H1.41", "nameZh": "龍巖會館", "nameAlt": "Lung-yen hui-kuan, Landsmannschaft of people originating from former independent department of Lung-yen (chou), Fukien", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 5.413296, "lng": 100.33538, "dateISO": "1929", "dateRef": "H1.41.1", "address": "24, Lebuh Melayu, George Town, 10300 George Town, Pulau Pinang, Malaysia", "notes": ""}, {"id": "fm-wf-195", "frankeNo": "H1.42", "nameZh": "永定同鄉會", "nameAlt": "Yung-ting t'ung-hsiang-hui, Landsmannschaft of people originating from Yung-ting county, T'ing-chou prefecture, Fukien", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1947", "dateRef": "H1.42 (p845)", "address": "", "notes": "現存最早文物H1.42.1 (1953)。"}, {"id": "fm-wf-196", "frankeNo": "H1.43", "nameZh": "晉江會館", "nameAlt": "Chin-chiang hui-kuan, Landsmannschaft of people from Chin-Chiang county, forming the prefectural city of Ch'üan-chou, Fukien", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 5.415985, "lng": 100.325491, "dateISO": "1919", "dateRef": "H1.43 (p847)", "address": "120-1, Jln Macalister, 10450 George Town, Pulau Pinang, Malaysia", "notes": "現存最早文物H1.43.1 (1961)。"}, {"id": "fm-wf-197", "frankeNo": "H1.44", "nameZh": "客屬公會", "nameAlt": "K'o-shu kung-hui, Landsmannschaft of all Hakka people", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 5.418075, "lng": 100.328787, "dateISO": "1939", "dateRef": "H1.44 (p854)", "address": "34, Jalan Burma, 10050 , George Town, Malaysia", "notes": "現存最早文物H1.44.1 (1962)。"}, {"id": "fm-wf-198", "frankeNo": "H1.45", "nameZh": "同安金厦公會", "nameAlt": "T'ung-an Chin Hsia kung-kui (Tong Aun Kim Har Association), Landsmannschaft of people originating from T'uang-an county, Quemoy, and Amoy, Fukien", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 5.413185, "lng": 100.335522, "dateISO": "1933", "dateRef": "H1.45 (p855)", "address": "22, Lebuh Melayu, George Town, 10300 George Town, Pulau Pinang, Malaysia", "notes": "現存最早文物H1.45.1 (1963)。"}, {"id": "fm-wf-220", "frankeNo": "H2.3", "nameZh": "韓江公會", "nameAlt": "Han-chiang kung-hui, Hung Kung Association/Landsmannschaft of people from Ch'ao-chou prefecture", "origin": "潮州群 (潮汕)", "color": "#9333ea", "hasCoord": true, "lat": 5.362932, "lng": 100.462666, "dateISO": "1931", "dateRef": "H2.3.1", "address": "109, Jalan Datuk Ooh Chooi Cheng, 14000 Bukit Mertajam, Pulau Pinang, Malaysia", "notes": ""}, {"id": "fm-wf-232", "frankeNo": "I1.5", "nameZh": "嘉應會館", "nameAlt": "Chia-ying hui-kuan, Hakka Landsmannschaft of Chia-ying", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 4.595665, "lng": 101.076943, "dateISO": "02/01/1900", "dateRef": "I1.5 (p981)", "address": "Third Floor, Perak Kaying Building, 114, Jln Sultan Yussof, 30000 Ipoh, Perak, Malaysia", "notes": "現存最早文物I1.5.1 (1902)。"}, {"id": "fm-wf-233", "frankeNo": "I1.6", "nameZh": "東安會館", "nameAlt": "Tung An hui-kuan, Landsmannschaft of people from Tung-kuan and Hsin-an counties, Kuang-chou prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 4.594376, "lng": 101.085867, "dateISO": "1953", "dateRef": "I1.6.1", "address": "No. 73 & 75, Jalan Theatre, Taman Jubilee, 30300 Ipoh, Perak, Malaysia", "notes": ""}, {"id": "fm-wf-237", "frankeNo": "I3.2", "nameZh": "福建公會", "nameAlt": "Fu-chien kung-hui, Fukien Landsmannschaft", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 4.315567, "lng": 101.153085, "dateISO": "1934", "dateRef": "I3.2 (p994)", "address": "176A-178A, Jalan Gopeng, 31900 Kampar, Perak, Malaysia", "notes": "現存最早文物I3.2.1 (1938)。"}, {"id": "fm-wf-261", "frankeNo": "I10.16", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, Hainan Landsmannschaft", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 4.850256, "lng": 100.744457, "dateISO": "1881", "dateRef": "I10.16.1", "address": "16, Jalan Maharajalela, 34000 Taiping, Perak, Malaysia", "notes": "疑似。"}, {"id": "fm-wf-262", "frankeNo": "I10.17", "nameZh": "增龍會館", "nameAlt": "Tseng-lung hui-kuan, Landsmannschaft of people from Tseng-ch'eng and Lung-men counties of Kuang-chou prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 4.850965, "lng": 100.738837, "dateISO": "1887", "dateRef": "I10.17.1", "address": "Jalan Pasar, 34000 Taiping, Perak, Malaysia", "notes": "現存最早文物I10.17.1 (1887)。"}, {"id": "fm-wf-263", "frankeNo": "I10.18", "nameZh": "廣東會館", "nameAlt": "Kuang-tung hui-kuan, Landsmannschaft of people from Kuang-tung province", "origin": "跨省 / 綜合機構", "color": "#475569", "hasCoord": true, "lat": 4.85329, "lng": 100.743752, "dateISO": "1887", "dateRef": "I10.18.1", "address": "13, Jalan Tokong, 34000 Taiping, Perak, Malaysia", "notes": ""}, {"id": "fm-wf-264", "frankeNo": "I10.19", "nameZh": "順德會館", "nameAlt": "Shun-te hui-kuan, Landsmannschaft of people from Shun-te county Kuang-chou prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 4.853254, "lng": 100.743074, "dateISO": "1895/96", "dateRef": "I10.19.1", "address": "36, Jalan Kota, 34000 Taiping, Perak, Malaysia", "notes": ""}, {"id": "fm-wf-265", "frankeNo": "I10.20", "nameZh": "清遠會館", "nameAlt": "Ch'ing-yüan hui-kuan, Landsmannschaft of people from Ch'ing-yüan county, Kuang-chou prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 4.853995, "lng": 100.74291, "dateISO": "1909", "dateRef": "I10.20.1", "address": "22, Jalan Pasar, 34000 Taiping, Perak, Malaysia", "notes": "現存最早文物I.20.1 (1909)。"}, {"id": "fm-wf-266", "frankeNo": "I10.21", "nameZh": "惠州會館", "nameAlt": "Hui-chou hui-kuan, Landsmannschaft of people from Hui-chou prefecture", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1923", "dateRef": "I10.21.1", "address": "", "notes": ""}, {"id": "fm-wf-267", "frankeNo": "I10.22", "nameZh": "福建會館", "nameAlt": "Fu-chien hui-kuan, Landsmannschaft of Fukien people", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 4.848396, "lng": 100.735147, "dateISO": "1931", "dateRef": "I10.22.1", "address": "290, Jalan Kota, Kampung Jambu, 34000 Taiping, Perak, Malaysia", "notes": "曾用名Fu-chien kung-ssu福建公司。"}, {"id": "fm-wf-268", "frankeNo": "I10.23", "nameZh": "(古)岡州會館", "nameAlt": " (Ku) Kang-chou hui-kuan, Landsmannschaft of people originating from ancient Kang-chou", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 4.849924, "lng": 100.744006, "dateISO": "1880s", "dateRef": "I10.23 (p1082)", "address": "No. 42, Jalan Maharajalela, 34000 Taiping, Perak, Malaysia", "notes": ""}, {"id": "fm-wf-269", "frankeNo": "I10.24", "nameZh": "興安會館", "nameAlt": "Hsing-an hui-kuan, Landsmannschaft of people of the two counties P'u-t'ien and Hsien-yu which made up Hsing-hua prefecture", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 4.847828, "lng": 100.742257, "dateISO": "1898/1899", "dateRef": "I10.24 (p1085)", "address": "No. 222, 2nd Floor, Jalan Chung Thye Phin, Perak, 34000 Taiping, Malaysia", "notes": "現存最早文物I10.24.1 (1958)。"}, {"id": "fm-wf-275", "frankeNo": "J1.3", "nameZh": "福建會館", "nameAlt": "Fu-chien hui-kuan, Landsmannschaft of people from Fukien", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 6.438608, "lng": 100.193699, "dateISO": "1962", "dateRef": "J1.3.1", "address": "Pusat Bandar Kangar, 01000 , Malaysia", "notes": ""}, {"id": "fm-wf-283", "frankeNo": "K1.6", "nameZh": "閩南公所", "nameAlt": "Min-nan Kung-so, the Landsmanschaft of peaple from Southern Fukien", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 3.052667, "lng": 101.461727, "dateISO": "1927", "dateRef": "K1.6 (01114)", "address": "3216, Jalan Batu Tiga Lama, Kawasan 16, 41300 Klang, Selangor, Malaysia", "notes": ""}, {"id": "fm-wf-285", "frankeNo": "K1.8", "nameZh": "潮州八邑會館", "nameAlt": "Ch'ao-chou pa-i hui-kuan, Ch'ao-chou Landsmannschaft", "origin": "潮州群 (潮汕)", "color": "#9333ea", "hasCoord": true, "lat": 3.044417, "lng": 101.446026, "dateISO": "1947", "dateRef": "K1.8.1, K1.8.2", "address": "No.50 , Jalan Raya Barat/KS1,, Pusat Bandar, 41000 Klang, Selangor, Malaysia", "notes": ""}, {"id": "fm-wf-286", "frankeNo": "K1.9", "nameZh": "大埔同鄉會", "nameAlt": "Ta-p'u t'ung-hsiang-hui (Tai Pu Association), Landsmannschaft Hakka county Ta-p'u ", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 3.014637, "lng": 101.436525, "dateISO": "1938", "dateRef": "K1.9 (p1119)", "address": "66, Jalan Batu Unjur 1, Taman Bayu Perdana, 41200 Klang, Selangor, Malaysia", "notes": ""}, {"id": "fm-wf-287", "frankeNo": "K1.10", "nameZh": "廣肇會館", "nameAlt": "Kuang-Chao hui-kuan, Landsmannschaft of people from Kuang-cho and Chao-ch'ing prefecture", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 3.040293, "lng": 101.452137, "dateISO": "1950", "dateRef": "K1.10.1", "address": "Jalan Raya Timur, Kawasan 1, 41000 Klang, Selangor, Malaysia", "notes": ""}, {"id": "fm-wf-288", "frankeNo": "K1.11", "nameZh": "惠安公會", "nameAlt": "Hui-an kung-hui, Landsmannschaft of people from Hui-an county", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 3.030041, "lng": 101.431178, "dateISO": "1946", "dateRef": "K1.11 (p1121)", "address": "114, Persiaran Raja Muda Musa, Taman Sri Pesona, 41100 Klang, Selangor, Malaysia", "notes": "曾用名Hui-an pieh-shu別墅，Hui-an t'ung-hsiang-hui同鄉會。"}, {"id": "fm-wf-289", "frankeNo": "K1.12", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan (Kheng Chew Hoey Kuan), Hainan Landsmannschaft", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 3.042203, "lng": 101.4481, "dateISO": "1916", "dateRef": "K1.12 (p1122)", "address": "Jalan Tengku Diaudin, Kawasan 1, 41000 Klang, Selangor, Malaysia", "notes": "疑似。現存最早文物K1.12.1 (1953)。"}, {"id": "fm-wf-303", "frankeNo": "K6.2", "nameZh": "福建公所", "nameAlt": "Fu-chien kung-so, Fukien Landsmannschaft", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 2.996899, "lng": 101.789601, "dateISO": "1937", "dateRef": "K6.2.1", "address": "3, Jalan Timur, Bandar Kajang, 43000 Kajang, Selangor, Malaysia", "notes": ""}, {"id": "fm-wf-313", "frankeNo": "L1.6", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan (Kheng Chew Hwee Kuan), Hainan Landsmannschaft", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 5.335043, "lng": 103.136783, "dateISO": "1860", "dateRef": "L1.6 (p1173)", "address": "6, Jalan Kota, Kampung Panglima, 20000 Kuala Terengganu, Terengganu, Malaysia", "notes": "現存最早文物L1.6.1 (1951)"}, {"id": "fm-wf-314", "frankeNo": "L1.7", "nameZh": "福建會館", "nameAlt": "Fu-chien hui-kuan, Fukien Landsmannschaft", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 5.329756, "lng": 103.137387, "dateISO": "1958", "dateRef": "L1.7.1", "address": "104-A & B, Tingkat 2 & 3, Jalan Sultan Ismail, 20200 Kuala Terengganu, Terengganu, Malaysia", "notes": ""}, {"id": "fm-wf-329", "frankeNo": "M4.5", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan, Hainan Landsmannschaft", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 5.277479, "lng": 115.243259, "dateISO": "1890", "dateRef": "M4.5 (p1218)", "address": "Jalan Bunga Melor, Bandar Labuan, 87000 Labuan, Wilayah Persekutuan Labuan, Malaysia", "notes": "現存最早文物M4.5.1 (1958)。"}, {"id": "fm-wf-342", "frankeNo": "M8.9", "nameZh": "瓊州會館", "nameAlt": "Ch'iung-chou hui-kuan (Keng Chew Association), Hainan Landsmannschaft", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 5.863846, "lng": 118.119155, "dateISO": "1958", "dateRef": "M8.9.1", "address": "Lor Grandview 3A, 90000 Sandakan, Sabah, Malaysia", "notes": ""}, {"id": "fm-wf-363", "frankeNo": "N1.10", "nameZh": "瓊州公會", "nameAlt": "Ch'iung-chou kung-hui (Kheng Chew Association), Hainan Landsmannschaft", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": true, "lat": 1.55808, "lng": 110.346248, "dateISO": "1885", "dateRef": "N1.10.1", "address": "40, First Floor, Carpenter St, Main Bazaar, 93000 Kuching, Sarawak, Malaysia", "notes": ""}, {"id": "fm-wf-364", "frankeNo": "N1.11", "nameZh": "廣肇惠會館", "nameAlt": "Kuang Chao Hui hui-kuan, Landsmannschaft of people originating from the three prefectures of Kuang-chou, Chao-ch'ing, and Hui-chou", "origin": "廣府群 (粵)", "color": "#dc2626", "hasCoord": true, "lat": 1.552933, "lng": 110.364206, "dateISO": "1916", "dateRef": "N1.11.1", "address": "Lot 116-118, No. 80,82 & 84, Jalan Ang Cheng Ho, 93100 Kuching, Sarawak, Malaysia", "notes": ""}, {"id": "fm-wf-379", "frankeNo": "N8.3", "nameZh": "瓊州公會", "nameAlt": "Ch'iung-chou kung-hui, Hainan Landsmannschaft", "origin": "海南群 (瓊州)", "color": "#d97706", "hasCoord": false, "lat": null, "lng": null, "dateISO": "1949", "dateRef": "N8.3.1", "address": "", "notes": ""}, {"id": "fm-wf-382", "frankeNo": "N9.3", "nameZh": "客屬公會", "nameAlt": "K'o-shu kung-hui, Hakka Landsmannschaft", "origin": "客家群 (客屬)", "color": "#059669", "hasCoord": true, "lat": 4.390365, "lng": 113.985642, "dateISO": "1950", "dateRef": "N9.3.1", "address": "L2 , Centre Point Miri , Jalan Melayu , 98000 Miri , Sarawak, 98000, Malaysia", "notes": ""}, {"id": "fm-wf-383", "frankeNo": "N9.4", "nameZh": "詔安會館", "nameAlt": "Chao-an hui-kuan, Landsmannschaft of people from Chao-an county, Chang-chou prefecture", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 4.422636, "lng": 114.004415, "dateISO": "1951", "dateRef": "N9.4.1", "address": "C2F3+3Q3 Valencia Park, Miri, Malaysia", "notes": ""}, {"id": "fm-wf-384", "frankeNo": "N9.5", "nameZh": "福州公會", "nameAlt": "Fu-chou kung-hui, (Miri Foochow Association), Landsmannschaft of people from Fu-chou prefecture", "origin": "閩籍 / 閩南群", "color": "#2563eb", "hasCoord": true, "lat": 4.421345, "lng": 114.004864, "dateISO": "1951", "dateRef": "N9.5.1", "address": "C2C3+GW Valencia Park, Miri, Malaysia", "notes": ""}];
+        const summaryStats = [{"name": "閩籍 / 閩南群", "color": "#2563eb", "desc": "泉州、漳州、福州、興化、永春、安溪等閩南閩東原鄉", "total": 21, "geocoded": 20}, {"name": "廣府群 (粵)", "color": "#dc2626", "desc": "廣州府、肇慶府及四邑（新會、台山、開平、恩平）等粵語區", "total": 18, "geocoded": 17}, {"name": "客家群 (客屬)", "color": "#059669", "desc": "惠州府、嘉應州（梅縣）、大埔茶陽及閩西汀州永定等客家聚落", "total": 15, "geocoded": 12}, {"name": "海南群 (瓊州)", "color": "#d97706", "desc": "原廣東省瓊州府（海南島各縣）移民", "total": 14, "geocoded": 11}, {"name": "潮州群 (潮汕)", "color": "#9333ea", "desc": "廣東省潮州府八邑及韓江水系原鄉", "total": 4, "geocoded": 4}, {"name": "廣西群", "color": "#0891b2", "desc": "廣西省籍同鄉", "total": 2, "geocoded": 1}, {"name": "雷州群", "color": "#e11d48", "desc": "廣東省雷州半島籍移民（雷陽社）", "total": 1, "geocoded": 1}, {"name": "跨省 / 綜合機構", "color": "#475569", "desc": "跨省份或全省籍華人聯合會館與大會堂前身", "total": 5, "geocoded": 5}];
+
+        let activeOrigins = new Set(summaryStats.map(s => s.name));
+        let map = null;
+        let markersLayer = null;
+
+        // 1. Initialize Map
+        function initMap() {
+            // Center roughly around West Malaysia
+            map = L.map('map', {
+                zoomControl: true
+            }).setView([3.8, 102.0], 7);
+
+            // Base map: CartoDB Positron / OSM for clean contrast
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a> | Data: Nanyang Data (CC BY-SA 4.0)',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            markersLayer = L.layerGroup().addTo(map);
+            renderMarkers();
+            renderLegend();
+            renderChips();
+            renderSitesList(pointsData);
+        }
+
+        // 2. Render Circle Markers on Map
+        function renderMarkers() {
+            markersLayer.clearLayers();
+            const searchText = document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim().toLowerCase() : '';
+
+            let visibleCount = 0;
+            pointsData.forEach(site => {
+                if (!site.hasCoord) return;
+                if (!activeOrigins.has(site.origin)) return;
+                if (searchText && !(
+                    site.nameZh.toLowerCase().includes(searchText) ||
+                    site.nameAlt.toLowerCase().includes(searchText) ||
+                    site.address.toLowerCase().includes(searchText)
+                )) return;
+
+                visibleCount++;
+
+                const marker = L.circleMarker([site.lat, site.lng], {
+                    radius: 7,
+                    fillColor: site.color,
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                });
+
+                const popupHtml = `
+                    <div>
+                        <div class="popup-title">${site.nameZh}</div>
+                        <div class="popup-sub">${site.nameAlt}</div>
+                        <span class="popup-badge" style="background:${site.color}">${site.origin}</span>
+                        <div class="popup-detail">
+                            <strong>Franke編號：</strong>${site.frankeNo}<br>
+                            <strong>現存最早銘刻：</strong>${site.dateISO || '未詳'} (${site.dateRef || ''})<br>
+                            <strong>現代地址：</strong>${site.address || '無現代地址紀錄'}<br>
+                            ${site.notes ? `<strong>考證備註：</strong>${site.notes}` : ''}
+                        </div>
+                    </div>
+                `;
+
+                marker.bindPopup(popupHtml);
+                markersLayer.addLayer(marker);
+            });
+
+            document.getElementById('totalVisibleCount').innerText = visibleCount;
+        }
+
+        // 3. Render Floating Legend
+        function renderLegend() {
+            const container = document.getElementById('legendItemsList');
+            container.innerHTML = '';
+            summaryStats.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'legend-item';
+                div.innerHTML = `
+                    <span class="legend-color" style="background:${item.color}"></span>
+                    <span>${item.name} (${item.geocoded}處)</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // 4. Render Origin Group Chips
+        function renderChips() {
+            const container = document.getElementById('chipsContainer');
+            container.innerHTML = '';
+            summaryStats.forEach(item => {
+                const chip = document.createElement('button');
+                const isActive = activeOrigins.has(item.name);
+                chip.className = `chip ${isActive ? 'active' : ''}`;
+                chip.style.borderColor = isActive ? item.color : '#cbd5e1';
+                chip.innerHTML = `
+                    <span class="chip-dot" style="background:${item.color}"></span>
+                    <span>${item.name}</span>
+                    <span class="chip-count">(${item.geocoded})</span>
+                `;
+                chip.onclick = () => toggleOrigin(item.name);
+                container.appendChild(chip);
+            });
+        }
+
+        // 5. Toggle Origin filter
+        function toggleOrigin(name) {
+            if (activeOrigins.has(name)) {
+                if (activeOrigins.size > 1) {
+                    activeOrigins.delete(name);
+                } else {
+                    // If clicking the only active, restore all
+                    activeOrigins = new Set(summaryStats.map(s => s.name));
+                }
+            } else {
+                activeOrigins.add(name);
+            }
+            renderChips();
+            renderMarkers();
+            filterSites();
+        }
+
+        function resetFilters() {
+            activeOrigins = new Set(summaryStats.map(s => s.name));
+            if (document.getElementById('searchInput')) {
+                document.getElementById('searchInput').value = '';
+            }
+            renderChips();
+            renderMarkers();
+            filterSites();
+        }
+
+        // 6. Render Sites in Sidebar List
+        function renderSitesList(items) {
+            const container = document.getElementById('sitesList');
+            container.innerHTML = '';
+            if (items.length === 0) {
+                container.innerHTML = '<div style="padding:24px; text-align:center; color:#94a3b8; font-size:13px;">查無相符會館組織</div>';
+                return;
+            }
+
+            items.forEach(site => {
+                const card = document.createElement('div');
+                card.className = 'site-card';
+                card.innerHTML = `
+                    <div class="site-card-top">
+                        <span class="site-card-name">${site.nameZh}</span>
+                        <span class="site-card-tag" style="background:${site.color}">${site.origin}</span>
+                    </div>
+                    <div class="site-card-sub">${site.nameAlt}</div>
+                    <div class="site-card-foot">
+                        <span>最早銘刻: ${site.dateISO || '未詳'}</span>
+                        <span class="${site.hasCoord ? 'badge-mapped' : 'badge-unmapped'}">
+                            ${site.hasCoord ? '● 已在地圖標註' : '○ 無座標'}
+                        </span>
+                    </div>
+                `;
+
+                card.onclick = () => {
+                    if (site.hasCoord && map) {
+                        map.flyTo([site.lat, site.lng], 15, { duration: 1.2 });
+                        // Find marker and open popup
+                        markersLayer.eachLayer(layer => {
+                            if (layer.getLatLng && layer.getLatLng().lat === site.lat && layer.getLatLng().lng === site.lng) {
+                                layer.openPopup();
+                            }
+                        });
+                        // Close sidebar on mobile
+                        if (window.innerWidth <= 768) {
+                            toggleSidebar(false);
+                        }
+                    } else {
+                        alert(`${site.nameZh} (${site.origin}) 在原書中記錄但暫無現代座標。\n地址: ${site.address || '無'}`);
+                    }
+                };
+
+                container.appendChild(card);
+            });
+        }
+
+        // 7. Filter Sites based on search & active origins
+        function filterSites() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            const filtered = pointsData.filter(site => {
+                const matchOrigin = activeOrigins.has(site.origin);
+                const matchSearch = !q || (
+                    site.nameZh.toLowerCase().includes(q) ||
+                    site.nameAlt.toLowerCase().includes(q) ||
+                    site.origin.toLowerCase().includes(q) ||
+                    (site.dateISO && site.dateISO.toLowerCase().includes(q)) ||
+                    (site.address && site.address.toLowerCase().includes(q))
+                );
+                return matchOrigin && matchSearch;
+            });
+
+            renderSitesList(filtered);
+            renderMarkers();
+        }
+
+        // 8. Toggle Sidebar on Mobile
+        function toggleSidebar(forceState) {
+            const sidebar = document.getElementById('sidebar');
+            if (forceState !== undefined) {
+                if (forceState) sidebar.classList.add('mobile-open');
+                else sidebar.classList.remove('mobile-open');
+            } else {
+                sidebar.classList.toggle('mobile-open');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', initMap);
+    </script>
+</body>
+</html>
